@@ -27,6 +27,7 @@ Best to review the code in the `ellipso.commands` namespace.  Basically commands
 are functions that are applied to a `ellipso.core/Sphero` instance.
 
 ## TODO
+* implement more of the commands, especially the collision detection support;
 * look more into the state monad because that's what is needed;
 * work out how to do [The Batman Curve](http://mathworld.wolfram.com/BatmanCurve.html)!
 
