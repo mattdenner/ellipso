@@ -21,15 +21,34 @@ You'll need to change the connect string to the one for your Sphero.
             cycle  (concat speeds (reverse speeds))]
         (map (partial commands/spin commands/CLOCKWISE) cycle))))
 
-    (reduce commands/execute sphero (interpose (commands/pause 1000) rainbow spin))
+    (reduce commands/execute
+            sphero
+            (flatten (interpose (commands/pause 1000) (map list rainbow spin))))
 
 Best to review the code in the `ellipso.commands` namespace.  Basically commands
 are functions that are applied to a `ellipso.core/Sphero` instance.
+
+You can also receive, asynchronously, sensor data from the Sphero:
+
+    (require '[ellipso.sensor-data :as sensors] :reload)
+    ((sensors/data-streaming sensors/everything 100 println) sphero)
+
+This causes the Sphero to send 100 packets of information about the onboard
+sensors, which are then printed to the screen.  If the number was zero then
+it would stream indefinitely.
 
 ## TODO
 * implement more of the commands, especially the collision detection support;
 * look more into the state monad because that's what is needed;
 * work out how to do [The Batman Curve](http://mathworld.wolfram.com/BatmanCurve.html)!
+
+## Version History
+0.1.1-SNAPSHOT
+* Added sensor data support;
+* Fixed a small typo in the example code!
+
+0.1.0-SNAPSHOT
+* Initial version with several of the commands implemented.
 
 ## License
 

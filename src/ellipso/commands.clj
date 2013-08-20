@@ -18,26 +18,9 @@
          (or (nil? degrees)
              (and (>= degrees 0) (< degrees 360))))))))
 
-(defn- attach-asynchronous-handler
-  "Returns a command that will attach the given handler for the specified asynchronous
-  response ID."
-  [id callback]
-  (fn [sphero] ((:register-async-dispatch sphero) id callback) sphero))
-
-(defn- detach-asynchronous-handler
-  "Returns a command that will detach the handler currently registered for the asynchronous
-  response ID specified."
-  [id]
-  (fn [sphero] ((:register-async-dispatch sphero) id nil) sphero))
-
-; The on-board devices of the Sphero ball
-(def ^{:private true} CORE 0x00)
-(def ^{:private true} SPHERO 0x02)
-
 ; Asynchronous message IDs
 (def ^{:private true} POWER-NOTIFICATION 0x01)
 (def ^{:private true} LEVEL-1-DIAGNOSTICS 0x02)
-(def ^{:private true} SENSOR-DATA 0x03)
 (def ^{:private true} CONFIG-BLOCK 0x04)
 (def ^{:private true} PRE-SLEEP-WARNING 0x05)
 (def ^{:private true} MACRO-MARKERS 0x06)
@@ -52,13 +35,15 @@
 (def ^{:private true} DISABLE 0x00)
 (def ^{:private true} ENABLE 0x01)
 
+(defn- boolean->byte [b] (if b ENABLE DISABLE))
+
 ; ********************************************************************************************
 ; Commands that are more informational
 ; ********************************************************************************************
 (defn ping
   "Returns a command that will send a ping command to the Sphero."
   []
-  (fn [sphero] (core/send-to sphero [CORE 0x01] core/ensure-simple-response)))
+  (fn [sphero] (core/send-to sphero [core/CORE 0x01] core/ensure-simple-response)))
 
 (defrecord Version [record-version
                     model-number
@@ -85,21 +70,21 @@
   a Version record to the callback function passed."
   [callback]
   (fn [sphero]
-    (core/send-to sphero [CORE 0x02] (version-handler callback))))
+    (core/send-to sphero [core/CORE 0x02] (version-handler callback))))
 
 (defn sleep
   "Returns a command that will put the Sphero to sleep, optionally waking in a specified
   number of seconds."
   ([] (sleep 0))
   ([wake-in]
-   (let [payload (concat [CORE 0x22] (utils/int->bytes 2 wake-in) [0x00 0x00 0x00])]
+   (let [payload (concat [core/CORE 0x22] (utils/short->bytes wake-in) [0x00 0x00 0x00])]
      (fn [sphero] (core/send-to sphero payload core/ensure-simple-response)))))
 
 (defn roll-timeout
   "Returns a command that will cause the Sphero motion to timeout after the specified number
   of milliseconds"
   [timeout]
-  (let [payload (concat [SPHERO 0x34] (utils/int->bytes 2 timeout))]
+  (let [payload (concat [core/SPHERO 0x34] (utils/short->bytes timeout))]
     (fn [sphero] (core/send-to sphero payload core/ensure-simple-response))))
 
 (defn stabilisation
@@ -108,25 +93,25 @@
   ([] (stabilisation true))
   ([stabilise]
    (fn [sphero]
-     (core/send-to sphero [SPHERO 0x02 (if stabilise 0x01 0x00)] core/ensure-simple-response))))
+     (core/send-to sphero [core/SPHERO 0x02 (if stabilise 0x01 0x00)] core/ensure-simple-response))))
 
 (defn power-notifications
   "Returns a command that will enable power notifications from the Sphero and install the
   specified callback function as the handler for these.  If no callback is passed then the
   power notifications are disabled."
   ([]
-   (let [detach (detach-asynchronous-handler POWER-NOTIFICATION)]
-     (fn [sphero] (core/send-to (detach sphero) [CORE 0x21 DISABLE] core/ensure-simple-response))))
+   (let [detach (core/detach-asynchronous-handler POWER-NOTIFICATION)]
+     (fn [sphero] (core/send-to (detach sphero) [core/CORE 0x21 DISABLE] core/ensure-simple-response))))
   ([callback]
-   (let [attach (attach-asynchronous-handler POWER-NOTIFICATION callback)]
-     (fn [sphero] (core/send-to (attach sphero) [CORE 0x21 ENABLE] core/ensure-simple-response)))))
+   (let [attach (core/attach-asynchronous-handler POWER-NOTIFICATION callback)]
+     (fn [sphero] (core/send-to (attach sphero) [core/CORE 0x21 ENABLE] core/ensure-simple-response)))))
 
 (defn pre-sleep
   "Returns a command that will attach the given callback for the pre-sleep warning that
   the Sphero sends.  If the callback is unspecified then the currently registered callback
   is removed."
-  ([]         (detach-asynchronous-handler PRE-SLEEP-WARNING))
-  ([callback] (attach-asynchronous-handler PRE-SLEEP-WARNING callback)))
+  ([]         (core/detach-asynchronous-handler PRE-SLEEP-WARNING))
+  ([callback] (core/attach-asynchronous-handler PRE-SLEEP-WARNING callback)))
 
 (defn perform-level-1-diagnostics
   "Returns a command that will cause the Sphero to generate level 1 diagnostic information,
@@ -138,9 +123,58 @@
                     (let [no-header (drop 3 packet)
                           no-checksum (take (dec (count no-header)) no-header)]
                       (callback (apply str (map char no-checksum)))
-                      ((detach-asynchronous-handler LEVEL-1-DIAGNOSTICS) sphero)))
-          attach  (attach-asynchronous-handler LEVEL-1-DIAGNOSTICS handler)]
-      (core/send-to (attach sphero) [CORE 0x40] core/ensure-simple-response))))
+                      ((core/detach-asynchronous-handler LEVEL-1-DIAGNOSTICS) sphero)))
+          attach  (core/attach-asynchronous-handler LEVEL-1-DIAGNOSTICS handler)]
+      (core/send-to (attach sphero) [core/CORE 0x40] core/ensure-simple-response))))
+
+(defrecord PermanentOptions [value
+                             keep-awake-on-charger
+                             vector-drive
+                             self-level-on-charger
+                             back-led-on
+                             motion-timeout
+                             demo-mode])
+
+(defn permanent-options
+  "Returns a command that will call the callback function with the permanent options from
+  the Sphero."
+  [callback]
+  (fn [sphero]
+    (core/send-to sphero [core/SPHERO 0x36]
+                  (fn [_ packet]
+                    (let [value    (utils/int<-bytes (drop 4 packet))
+                          settings (map #(bit-test (bit-shift-right value %) 0) (range 0 6))]
+                      (callback (apply ->PermanentOptions (cons value settings))))))))
+
+(defn- permanent-option [bit default]
+  (let [value  (bit-set 0x00 bit)
+        on     #(bit-or value %)
+        off    #(bit-and (bit-not value) % 0x00FFFF)]
+    (fn option-helper
+      ([] (option-helper default))
+      ([enable]
+       (let [f (if enable on off)]
+         (fn [sphero]
+           (core/send-to sphero [core/SPHERO 0x36]
+                    (fn [_ packet]
+                      (let [value   (utils/int<-bytes (drop 4 packet))
+                            payload (concat [core/SPHERO 0x35] (utils/int->bytes (f value)))]
+                        (core/send-to sphero payload core/ensure-simple-response)))))
+         )))))
+
+(def keep-awake-on-charger (permanent-option 0 false)) ; 0x01
+(def vector-drive          (permanent-option 1 false)) ; 0x02
+(def self-level-on-charger (permanent-option 2 false)) ; 0x04
+(def back-led-on           (permanent-option 3 true))  ; 0x08
+(def motion-timeouts       (permanent-option 4 true))  ; 0x10
+(def demo-mode             (permanent-option 5 false)) ; 0x20
+
+(defn stabilization
+  "Returns a command that will enable or disable the stabilisation of the Sphero."
+  ([] (stabilization true))
+  ([state]
+   (fn [sphero]
+     (core/send-to sphero [core/SPHERO 0x02 (boolean->byte state)] core/ensure-simple-response))))
 
 ; ********************************************************************************************
 ; Commands that have a physical affect on the Sphero, like moving & flashing
@@ -149,19 +183,19 @@
   "Returns a command that will set the brightness of the back LED on the Sphero, turning it
   off if no value is specified."
   ([] (back-led 0x00))
-  ([led] (fn [sphero] (core/send-to sphero [SPHERO 0x21 led] core/ensure-simple-response))))
+  ([led] (fn [sphero] (core/send-to sphero [core/SPHERO 0x21 led] core/ensure-simple-response))))
 
 (defn colour
   "Returns a command that will change the colour of the Sphero based on the value passed.  The
   value passed can be a 32-bit integer or 3 bytes representing the RGB values."
-  ([value] (apply colour (utils/int->bytes 3 value)))
+  ([value] (apply colour (utils/triple-octets->bytes value)))
   ([red green blue]
-   (fn [sphero] (core/send-to sphero [SPHERO 0x20 red green blue 0x00] core/ensure-simple-response))))
+   (fn [sphero] (core/send-to sphero [core/SPHERO 0x20 red green blue 0x00] core/ensure-simple-response))))
 
 (defn heading
   "Returns a command that will reset the Sphero's zero heading based on the one specified."
   [degrees]
-  (let [payload (concat [SPHERO 0x01] (utils/int->bytes 2 degrees))]
+  (let [payload (concat [core/SPHERO 0x01] (utils/short->bytes degrees))]
     (fn [sphero] (core/send-to sphero payload core/ensure-simple-response))))
 (requires-valid-heading #'heading)
 
@@ -169,26 +203,27 @@
   "Returns a command that will cause the Sphero to roll at the given speed in the given heading.
   Heading can only be between 0 and 359."
   [speed heading]
-  (let [payload (concat [SPHERO 0x30 speed] (utils/int->bytes 2 heading) [0x01])]
+  (let [payload (concat [core/SPHERO 0x30 speed] (utils/short->bytes heading) [0x01])]
     (fn [sphero] (core/send-to sphero payload core/ensure-simple-response))))
 (requires-valid-heading #'roll 1)
 
-(defn stop
-  "Returns a command that will cause the Sphero to come to a complete halt."
-  []
-  (fn [sphero] (core/send-to sphero [SPHERO 0x03 0x00 0x00 0x00 0x00] core/ensure-simple-response)))
-
-(def OFF 0x00)
+(def OFF     0x00)
 (def FORWARD 0x01)
 (def REVERSE 0x02)
-(def BRAKE 0x03)
-(def IGNORE 0x04)
+(def BRAKE   0x03)
+(def IGNORE  0x04)
 
 (defn raw-motor
   "Returns a command that will directly set the motors of the Sphero."
   [left right]
-  (let [payload (concat [SPHERO 0x33] left right)]
+  (let [payload (concat [core/SPHERO 0x33] left right)]
     (fn [sphero] (core/send-to sphero payload core/ensure-simple-response))))
+
+(defn stop
+  "Returns a command that will cause the Sphero to come to a complete halt."
+  []
+  (fn [sphero] (core/send-to sphero [core/SPHERO 0x03 0x00 0x00 0x00 0x00] core/ensure-simple-response)))
+;  (raw-motor [FORWARD 0x00] [FORWARD 0x00]))
 
 (defn left-motor
   "Returns a command that will directly set the left motor of the Sphero"

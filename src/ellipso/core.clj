@@ -129,6 +129,22 @@
         handler-for    (fn [packet] (or (@id->handler (second packet)) missing-handler))]
     [attach-handler handler-for]))
 
+(defn attach-asynchronous-handler
+  "Returns a command that will attach the given handler for the specified asynchronous
+  response ID."
+  [id callback]
+  (fn [sphero] ((:register-async-dispatch sphero) id callback) sphero))
+
+(defn detach-asynchronous-handler
+  "Returns a command that will detach the handler currently registered for the asynchronous
+  response ID specified."
+  [id]
+  (fn [sphero] ((:register-async-dispatch sphero) id nil) sphero))
+
+; The on-board devices of the Sphero ball
+(def CORE 0x00)
+(def SPHERO 0x02)
+
 (defrecord Sphero [port computer-sphero sphero-computer register-dispatch register-async-dispatch])
 
 (defn connect
