@@ -1,7 +1,7 @@
 (ns ellipso.commands)
 
-(require '[ellipso.utils :as utils])
-(require '[ellipso.core :as core])
+(require '[ellipso.utils :as utils] :reload)
+(require '[ellipso.core :as core] :reload)
 (require '[dire.core :as dire])
 
 ; ********************************************************************************************
@@ -60,8 +60,8 @@
   version 1.20 the api-version-major and api-version-minor values were unavailable, so we
   need to handle that by padding those responses with zeroes."
   [callback]
-  (fn [id response]
-    (let [payload (drop 4 response)
+  (fn [id packet]
+    (let [payload (:data packet)
           padded  (if (< (count payload) 0x0B) (concat payload [0x00 0x00]) payload)]
       (callback (apply ->Version padded)))))
 
@@ -95,6 +95,9 @@
    (fn [sphero]
      (core/send-to sphero [core/SPHERO 0x02 (if stabilise 0x01 0x00)] core/ensure-simple-response))))
 
+(def ^{:doc "States that come back from the power-notifications"}
+  power-states [:charging :ok :low :critical])
+
 (defn power-notifications
   "Returns a command that will enable power notifications from the Sphero and install the
   specified callback function as the handler for these.  If no callback is passed then the
@@ -103,7 +106,8 @@
    (let [detach (core/detach-asynchronous-handler POWER-NOTIFICATION)]
      (fn [sphero] (core/send-to (detach sphero) [core/CORE 0x21 DISABLE] core/ensure-simple-response))))
   ([callback]
-   (let [attach (core/attach-asynchronous-handler POWER-NOTIFICATION callback)]
+   (let [power-info (fn [packet] (nth power-states (first (:data packet)) :unknown))
+         attach     (core/attach-asynchronous-handler POWER-NOTIFICATION (comp callback power-info))]
      (fn [sphero] (core/send-to (attach sphero) [core/CORE 0x21 ENABLE] core/ensure-simple-response)))))
 
 (defn pre-sleep
@@ -119,11 +123,9 @@
   callback will be removed from the device."
   [callback]
   (fn [sphero]
-    (let [handler (fn [packet]
-                    (let [no-header (drop 3 packet)
-                          no-checksum (take (dec (count no-header)) no-header)]
-                      (callback (apply str (map char no-checksum)))
-                      ((core/detach-asynchronous-handler LEVEL-1-DIAGNOSTICS) sphero)))
+    (let [handler (fn [{data :data}]
+                    (callback (apply str (map char data)))
+                    ((core/detach-asynchronous-handler LEVEL-1-DIAGNOSTICS) sphero))
           attach  (core/attach-asynchronous-handler LEVEL-1-DIAGNOSTICS handler)]
       (core/send-to (attach sphero) [core/CORE 0x40] core/ensure-simple-response))))
 
@@ -141,8 +143,8 @@
   [callback]
   (fn [sphero]
     (core/send-to sphero [core/SPHERO 0x36]
-                  (fn [_ packet]
-                    (let [value    (utils/int<-bytes (drop 4 packet))
+                  (fn [_ {data :data}]
+                    (let [value    (utils/int<-bytes data)
                           settings (map #(bit-test (bit-shift-right value %) 0) (range 0 6))]
                       (callback (apply ->PermanentOptions (cons value settings))))))))
 
@@ -156,8 +158,8 @@
        (let [f (if enable on off)]
          (fn [sphero]
            (core/send-to sphero [core/SPHERO 0x36]
-                    (fn [_ packet]
-                      (let [value   (utils/int<-bytes (drop 4 packet))
+                    (fn [_ {data :data}]
+                      (let [value   (utils/int<-bytes data)
                             payload (concat [core/SPHERO 0x35] (utils/int->bytes (f value)))]
                         (core/send-to sphero payload core/ensure-simple-response)))))
          )))))

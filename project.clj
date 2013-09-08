@@ -1,4 +1,4 @@
-(defproject ellipso "0.1.1-SNAPSHOT"
+(defproject ellipso "0.1.2-SNAPSHOT"
   :description "A Clojure interface to the Sphero device"
   :url "https://github.com/mattdenner/ellipso"
   :license {:name "Eclipse Public License" :url "http://www.eclipse.org/legal/epl-v10.html"}

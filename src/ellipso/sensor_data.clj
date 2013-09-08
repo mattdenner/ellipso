@@ -32,8 +32,8 @@
   "When dealing with the sensor data we need a function that will take a packet from the Sphero
   and process it so that we get a hash containing the requested sensor values."
   [sensors callback]
-  (fn [packet]
-    (let [initial  [(drop 3 packet) {}]
+  (fn [{data :data}]
+    (let [initial  [data {}]
           [_ data] (reduce (fn [memo bit-index] ((or (sensors bit-index) identity) memo))
                            initial
                            (reverse (range 0 32)))]

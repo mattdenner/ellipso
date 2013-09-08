@@ -43,6 +43,9 @@ it would stream indefinitely.
 * work out how to do [The Batman Curve](http://mathworld.wolfram.com/BatmanCurve.html)!
 
 ## Version History
+0.1.2-SNAPSHOT
+* Complete rewrite of the packet parsing code to use a statemachine.
+
 0.1.1-SNAPSHOT
 * Added sensor data support;
 * Fixed a small typo in the example code!
