@@ -8,34 +8,71 @@ implementing the protocol documented as [Orbotix Communication API](https://gith
 ## Usage
 All of this is subject to change but:
 
-    (require '[ellipso.core :as core])
-    (def sphero (core/connect "/dev/tty.Sphero-RBR-RN-SPP"))
+````clojure
+(require '[ellipso.core :as core])
+(def sphero (core/connect "/dev/tty.Sphero-RBR-RN-SPP"))
+````
 
 You'll need to change the connect string to the one for your Sphero.
 
-    (require '[ellipso.commands :as commands])
-    (def rainbow
-      (map commands/colour [0xFF0000 0xFF8000 0xFFFF00 0x00FF00 0x0000FF 0x8000FF 0xFF00FF]))
-    (def spin
-      (let [speeds (range 0x30 0xFF 0x30)
-            cycle  (concat speeds (reverse speeds))]
-        (map (partial commands/spin commands/CLOCKWISE) cycle))))
+````clojure
+(require '[ellipso.commands :as commands])
+(def rainbow
+  (map commands/colour [0xFF0000 0xFF8000 0xFFFF00 0x00FF00 0x0000FF 0x8000FF 0xFF00FF]))
+(def spin
+  (let [speeds (range 0x30 0xFF 0x30)
+        cycle  (concat speeds (reverse speeds))]
+    (map (partial commands/spin commands/CLOCKWISE) cycle)))
 
-    (reduce commands/execute
-            sphero
-            (flatten (interpose (commands/pause 1000) (map list rainbow spin))))
+(reduce commands/execute
+        sphero
+        (flatten (interpose (commands/pause 1000) (map list rainbow spin))))
+````
 
 Best to review the code in the `ellipso.commands` namespace.  Basically commands
 are functions that are applied to a `ellipso.core/Sphero` instance.
 
 You can also receive, asynchronously, sensor data from the Sphero:
 
-    (require '[ellipso.sensor-data :as sensors] :reload)
-    ((sensors/data-streaming sensors/everything 100 println) sphero)
+````clojure
+(require '[ellipso.sensor-data :as sensors] :reload)
+((sensors/data-streaming sensors/everything 100 println) sphero)
+````
 
 This causes the Sphero to send 100 packets of information about the onboard
 sensors, which are then printed to the screen.  If the number was zero then
 it would stream indefinitely.
+
+
+## Connecting your computer to your Sphero
+You need to pair your Sphero with your laptop.
+
+On Ubuntu, the easiest way to do this is to use the [Cylon](https://www.npmjs.org/package/cylon-sphero) tool
+
+````
+sudo npm install -g cylon
+```
+Now you can run a 
+````
+cylon bluetooth scan
+````
+It will return the address of your device.  Then do:
+
+````
+cylon bluetooth pair <address>
+````
+
+When prompted for a key - put in 1234
+
+Finally, to connect use -
+````
+cylon bluetooth connect <address>
+````
+
+This will return the tty address that you will use to connect to in
+your Clojure code.
+
+
 
 ## TODO
 * implement more of the commands, especially the collision detection support;
