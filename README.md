@@ -10,10 +10,10 @@ All of this is subject to change but:
 
 ````clojure
 (require '[ellipso.core :as core])
-(def sphero (core/connect "/dev/tty.Sphero-RBR-RN-SPP"))
+(def sphero (core/connect-first))
 ````
 
-You'll need to change the connect string to the one for your Sphero.
+Assuming that you only have 1 sphero paired. Otherwise pass the path of the sphero to use to `core/connect`.
 
 ````clojure
 (require '[ellipso.commands :as commands])
