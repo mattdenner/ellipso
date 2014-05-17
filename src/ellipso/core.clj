@@ -5,8 +5,7 @@
 (require '[ellipso.utils :as utils] :reload)
 (require '[ellipso.statemachine :as statemachine] :reload)
 (require '[clojure.stacktrace :as stacktrace])
-(require '[clojure.string :as string])
-(require '[clojure.java.shell :as shell])
+(require '[clojure.java.io :as io])
 
 (def ^{:private true} seqid
   (let [ch (async/chan)]
@@ -105,7 +104,7 @@
   )
 
 (defn connect
-  "Connects to the Sphero, returning a respresentation of the device through which all 
+  "Connects to the Sphero, returning a respresentation of the device through which all
   communication should pass."
   [path]
   (let [sphero-port           (comms/open path)
@@ -129,7 +128,8 @@
 (defn list-sphero-paths
   "Lists connected spheros"
   []
-  (string/split (:out (shell/sh "bash" "-c" "ls /dev/tty.Sphero*")) #"\n"))
+  (filter #(.startsWith (.getName %) "tty.Sphero")
+          (file-seq (io/file "/dev"))))
 
 (defn connect-first
   "Connects to the first Sphero found. This is the easiest way
