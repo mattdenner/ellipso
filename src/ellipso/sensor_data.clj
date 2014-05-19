@@ -16,7 +16,11 @@
 (defn- def-sensor-data
   [n & details]
   (let [mask    (reduce #(bit-set %1 %2) 0x00000000 (map first details))
-        bit->fn (reduce (fn [h [b v s]] (assoc h b (take-next-value-from-frame (str n "-" (name v)) s))) {} details)]
+        bit->fn (reduce (fn [h [b v s]]
+                          (assoc h b
+                                 (take-next-value-from-frame
+                                  (keyword
+                                   (str (name n) "-" (name v))) s))) {} details)]
     (fn
        ([]  mask)
        ([b] (get bit->fn b)))))

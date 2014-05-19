@@ -3,17 +3,17 @@
 Last christmas my girlfriend bought me a [Sphero](http://gosphero.com/) which I spent a few weeks
 messing about with, and then put it in a drawer.  I've pulled it back out and built this library to
 play with some Clojure code.  This library provides basic integration with the Sphero device,
-implementing the protocol documented as [Orbotix Communication API](https://github.com/orbotix/DeveloperResources/blob/master/docs/Sphero_API_1.46.pdf?raw=true).
+implementing the protocol documented as [Orbotix Communication API](https://github.com/orbotix/DeveloperResources/blob/master/docs/Sphero_API_1.50.pdf?raw=true).
 
 ## Usage
 All of this is subject to change but:
 
 ````clojure
 (require '[ellipso.core :as core])
-(def sphero (core/connect "/dev/tty.Sphero-RBR-RN-SPP"))
+(def sphero (core/connect-first))
 ````
 
-You'll need to change the connect string to the one for your Sphero.
+Assuming that you only have 1 sphero paired. Otherwise pass the path of the sphero to use to `core/connect`.
 
 ````clojure
 (require '[ellipso.commands :as commands])
